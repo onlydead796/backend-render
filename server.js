@@ -38,6 +38,11 @@ app.get('/get-signed-url/:gameId', async (req, res) => {
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 900 }); // 15 dk
 
+    // CORS header ekle
+    res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL);
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
     res.json({ signedUrl });
   } catch (err) {
     if (err.$metadata?.httpStatusCode === 404) return res.json({ signedUrl: null });
@@ -46,7 +51,7 @@ app.get('/get-signed-url/:gameId', async (req, res) => {
   }
 });
 
-// Opsiyonel: download proxy
+// Opsiyonel: download proxy (isteğe bağlı)
 app.get('/download/:gameId', async (req, res) => {
   const gameId = req.params.gameId;
   if (!/^\d+$/.test(gameId)) return res.status(400).send('Geçersiz gameId');
@@ -57,6 +62,8 @@ app.get('/download/:gameId', async (req, res) => {
     await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
+
+    // Redirect ile download
     res.redirect(signedUrl);
   } catch (err) {
     if (err.$metadata?.httpStatusCode === 404) return res.status(404).send('Dosya bulunamadı');
