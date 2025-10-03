@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const fetch = require('node-fetch'); // GitHub API için, node-fetch yüklü olmalı
 const { S3Client, GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -22,6 +23,24 @@ const s3 = new S3Client({
 });
 
 const BUCKET = process.env.B2_BUCKET;
+
+// GitHub Token (Environment Variable)
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || null;
+
+// Örnek: GitHub API'den özel repo dosyasını çekmek (GET raw JSON gibi)
+async function fetchFromGitHub(path) {
+  if (!GITHUB_TOKEN) throw new Error('GitHub token bulunamadı');
+  const url = `https://api.github.com/repos/onlydead796/online-fix-game-name/contents/${path}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github.v3.raw',
+      'User-Agent': 'Your-App-Name'
+    },
+  });
+  if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+  return await res.text(); // raw dosya içeriği döner
+}
 
 // Signed URL endpoint
 app.get('/get-signed-url/:gameId', async (req, res) => {
