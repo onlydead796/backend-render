@@ -58,7 +58,7 @@ app.get('/github-file', async (req, res) => {
     const jsonData = JSON.parse(data);
 
     // 2. Bu JSON'u yeni sunucuya POST ile gönder
-    const response = await fetch('https://steam-manifesthub-revolution.vercel.app/github-file', {
+    const response = await fetch('https://steam-manifesthub-revolution.vercel.app/api/github-file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(jsonData)
