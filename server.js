@@ -53,15 +53,23 @@ async function fetchFromGitHub(path) {
 // /github-file endpoint
 app.get('/github-file', async (req, res) => {
   try {
-    const response = await fetch('https://steam-manifesthub-revolution.vercel.app/github-file');
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-    const data = await response.json();
-    res.json(data);
+    // 1. GitHub'dan JSON dosyasını çek
+    const data = await fetchFromGitHub('online-fix.json');
+    const jsonData = JSON.parse(data);
+
+    // 2. Bu JSON'u yeni sunucuya POST ile gönder
+    const response = await fetch('https://steam-manifesthub-revolution.vercel.app/github-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jsonData)
+    });
+
+    // 3. Oradan dönen cevabı frontend'e ilet
+    const result = await response.json();
+    res.json(result);
   } catch (error) {
-    console.error('Yeni sunucudan dosya alınırken hata:', error);
-    res.status(500).json({ error: 'Dosya alınamadı' });
+    console.error('GitHub veya yeni sunucuya gönderim hatası:', error);
+    res.status(500).json({ error: 'İşlem başarısız' });
   }
 });
 
