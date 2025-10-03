@@ -1,16 +1,22 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch'); // GitHub API için, node-fetch yüklü olmalı
+const fetch = require('node-fetch');
 const { S3Client, GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
 
-// Frontend URL (Vercel/Netlify deploy için)
+// FRONTEND_URL environment variable, yoksa tüm originlere izin ver
 const FRONTEND_URL = process.env.FRONTEND_URL || '*';
-app.use(cors({ origin: FRONTEND_URL }));
 
-// Backblaze B2 Client
+// CORS ayarı
+const corsOptions = FRONTEND_URL === '*'
+  ? {}
+  : { origin: FRONTEND_URL };
+
+app.use(cors(corsOptions));
+
+// Backblaze B2 S3 client ayarı
 const s3 = new S3Client({
   endpoint: process.env.B2_ENDPOINT,
   region: process.env.B2_REGION || 'us-east-005',
@@ -24,10 +30,10 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.B2_BUCKET;
 
-// GitHub Token (Environment Variable)
+// GitHub Token
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || null;
 
-// GitHub’dan dosya çekme fonksiyonu
+// GitHub'dan dosya çekme fonksiyonu
 async function fetchFromGitHub(path) {
   if (!GITHUB_TOKEN) throw new Error('GitHub token bulunamadı');
   const url = `https://api.github.com/repos/onlydead796/online-fix-game-name/contents/${path}`;
@@ -38,14 +44,16 @@ async function fetchFromGitHub(path) {
       'User-Agent': 'Your-App-Name'
     },
   });
-  if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-  return await res.text(); // raw dosya içeriği döner
+  if (!res.ok) {
+    throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+  }
+  return await res.text();
 }
 
-// GitHub JSON dosyasını dönen endpoint
+// /github-file endpoint
 app.get('/github-file', async (req, res) => {
   try {
-    const data = await fetchFromGitHub('online-fix.json'); // repo içindeki dosya yolu
+    const data = await fetchFromGitHub('online-fix.json');
     const jsonData = JSON.parse(data);
     res.json(jsonData);
   } catch (error) {
@@ -54,7 +62,7 @@ app.get('/github-file', async (req, res) => {
   }
 });
 
-// Signed URL endpoint
+// /get-signed-url/:gameId endpoint
 app.get('/get-signed-url/:gameId', async (req, res) => {
   const gameId = req.params.gameId;
   if (!/^\d+$/.test(gameId)) return res.status(400).json({ signedUrl: null });
@@ -62,14 +70,11 @@ app.get('/get-signed-url/:gameId', async (req, res) => {
   const key = `${gameId}.zip`;
 
   try {
-    // Dosya var mı kontrol et
     await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
 
-    // Signed URL oluştur
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 900 }); // 15 dk
 
-    // CORS header ekle
     res.setHeader('Access-Control-Allow-Origin', FRONTEND_URL);
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -82,7 +87,7 @@ app.get('/get-signed-url/:gameId', async (req, res) => {
   }
 });
 
-// Opsiyonel: download proxy (isteğe bağlı)
+// /download/:gameId endpoint (opsiyonel)
 app.get('/download/:gameId', async (req, res) => {
   const gameId = req.params.gameId;
   if (!/^\d+$/.test(gameId)) return res.status(400).send('Geçersiz gameId');
@@ -94,7 +99,6 @@ app.get('/download/:gameId', async (req, res) => {
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
 
-    // Redirect ile download
     res.redirect(signedUrl);
   } catch (err) {
     if (err.$metadata?.httpStatusCode === 404) return res.status(404).send('Dosya bulunamadı');
@@ -105,4 +109,6 @@ app.get('/download/:gameId', async (req, res) => {
 
 // Sunucu başlat
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Backend çalışıyor: http://localhost:${port}`));
+app.listen(port, () => {
+  console.log(`Backend çalışıyor: http://localhost:${port}`);
+});
