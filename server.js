@@ -27,7 +27,7 @@ const BUCKET = process.env.B2_BUCKET;
 // GitHub Token (Environment Variable)
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || null;
 
-// Örnek: GitHub API'den özel repo dosyasını çekmek (GET raw JSON gibi)
+// GitHub’dan dosya çekme fonksiyonu
 async function fetchFromGitHub(path) {
   if (!GITHUB_TOKEN) throw new Error('GitHub token bulunamadı');
   const url = `https://api.github.com/repos/onlydead796/online-fix-game-name/contents/${path}`;
@@ -41,6 +41,18 @@ async function fetchFromGitHub(path) {
   if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
   return await res.text(); // raw dosya içeriği döner
 }
+
+// GitHub JSON dosyasını dönen endpoint
+app.get('/github-file', async (req, res) => {
+  try {
+    const data = await fetchFromGitHub('online-fix.json'); // repo içindeki dosya yolu
+    const jsonData = JSON.parse(data);
+    res.json(jsonData);
+  } catch (error) {
+    console.error('GitHub dosyası alınırken hata:', error);
+    res.status(500).json({ error: 'Dosya alınamadı' });
+  }
+});
 
 // Signed URL endpoint
 app.get('/get-signed-url/:gameId', async (req, res) => {
